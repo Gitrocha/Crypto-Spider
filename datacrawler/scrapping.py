@@ -1,6 +1,7 @@
 from selenium import webdriver
 import time as t
 from requests import get
+from datetime import datetime
 
 #------- REQUESTS PERFORMANCE CONFIG OPTIMIZATION AND RETRIES
 stream = False
@@ -54,31 +55,43 @@ class CryptoSlugs:
         header['Accept'] = 'application/json, text/javascript, */*; q=0.01'
         return header
 
-    def get_list(self):
+    def get_full_list(self):
         header = self.get_headers()
         response = get(url=self.url, headers=header, stream=stream, timeout=heavyreq_to)
         json_data = response.json()
 
         return json_data
 
-'''
-class ApiAuth:
-class ApiSales:
+    def get_simple_list(self):
+        full_list = self.get_full_list()
+        return [[item['rank'], item['slug']] for item in full_list]
 
-    def __init__(self, token=None,
-                 stonecode=None,
-                 startdate=None,
-                 finaldate=None,
-                 outformat=None,
-                 splitmode=None,
-                 url='https://portalapi.stone.com.br/v1/transactions'):
 
-    def get(self):
-        try:
-            header = self.get_headers()
-            response = requests.get(url=self.url, headers=header, stream=stream, timeout=heavyreq_to)
-        except:
-            rsc = 500
-            return rsc
+def iterator(coin):
 
-'''
+    try:
+        today = datetime.now().strftime('%Y%m%d')
+
+        print(f'Crawling {coin} data')
+
+        crawler = Crypto(driver=driver('Chrome'),
+                         date_start='20130101',
+                         date_end=today,
+                         crypto=coin)
+
+        crawler.navigate()
+
+        elements = crawler.get_table_rows()
+
+        with open(f'database/{coin}.csv', 'w+') as file:
+
+            for row in elements:
+                file.write(row.text)
+                file.write('\n')
+
+        crawler.end_process()
+
+        return 200
+
+    except:
+        return 500

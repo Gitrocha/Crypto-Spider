@@ -4,4 +4,10 @@ venv/
 
 env
 
+datacrawler/env
+
 .idea
+
+__pycache__
+
+debug.log

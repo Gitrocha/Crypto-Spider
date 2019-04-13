@@ -1,29 +1,20 @@
-from scrapping import Crypto, driver, CryptoSlugs
-from datetime import datetime
+from scrapping import Crypto, driver, CryptoSlugs, iterator
+from multiprocessing import Pool
+from functools import partial
 
 
-all_slugs = CryptoSlugs().get_list()
+if __name__ == '__main__':
 
-print(all_slugs[0])
+    all_slugs = CryptoSlugs().get_simple_list()
 
-'''
-today = datetime.now().strftime('%Y%m%d')
+    coin_list = [item[1] for item in all_slugs]
 
-coin = 'bitcoin'
+    nth_coin_list = coin_list[0:99]
 
-crawler = Crypto(driver=driver('Chrome'),
-                 date_start='20190412',
-                 date_end=today,
-                 crypto=coin)
+    print(nth_coin_list)
 
-crawler.navigate()
-
-elements = crawler.get_table_rows()
-
-crawler.end_process()
-
-with open(f'database/{coin}.csv', 'w+') as file:
-    for row in elements:
-        file.write(row.text)
-        file.write('\n')
-'''
+    xpool = Pool(processes=4)
+    #iterator_partial = partial(iterator, date_start='20130101')
+    reqs = xpool.map_async(iterator, nth_coin_list)
+    xpool.close()
+    xpool.join()
