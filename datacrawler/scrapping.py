@@ -2,6 +2,7 @@ from selenium import webdriver
 import time as t
 from requests import get
 from datetime import datetime
+import pandas as pd
 
 #------- REQUESTS PERFORMANCE CONFIG OPTIMIZATION AND RETRIES
 stream = False
@@ -34,14 +35,19 @@ class Crypto:
     def navigate(self):
         print('* ------------ Starting navigation ----------------- ')
         url = f'{self.url}/{self.crypto}/historical-data/?start={self.date_start}&end={self.date_end}'
-        self.driver.get(url)
-        t.sleep(5)
-        print('* ------------ Page has loaded --------------------- ')
+        try:
+            self.driver.get(url)
+            t.sleep(10)
+            print('* ------------ Page has loaded --------------------- ')
+            return 200
+        except:
+            return 500
 
     def get_table_rows(self):
         return self.driver.find_elements_by_tag_name('tr')
 
     def end_process(self):
+        print('* ------------ Crawler finished -------------------- ')
         return self.driver.close()
 
 
@@ -53,6 +59,9 @@ class CryptoSlugs:
     def get_headers(self):
         header = dict()
         header['Accept'] = 'application/json, text/javascript, */*; q=0.01'
+        header['Origin'] = 'https://coinmarketcap.com'
+        header['Refer'] = 'https://coinmarketcap.com/'
+        header['User-Agent'] = ': Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/73.0.3683.103 Safari/537.36'
         return header
 
     def get_full_list(self):
@@ -67,31 +76,56 @@ class CryptoSlugs:
         return [[item['rank'], item['slug']] for item in full_list]
 
 
-def iterator(coin):
+def iterator(coin, date_start):
 
-    try:
-        today = datetime.now().strftime('%Y%m%d')
+    today = datetime.now().strftime('%Y%m%d')
+    filename = f'database/{coin}.csv'
 
-        print(f'Crawling {coin} data')
+    print(f'* ------------ Crawling {coin} data ------------------- ')
 
-        crawler = Crypto(driver=driver('Chrome'),
-                         date_start='20130101',
-                         date_end=today,
-                         crypto=coin)
+    crawler = Crypto(driver=driver('Firefox'),
+                     date_start=date_start,
+                     date_end=today,
+                     crypto=coin)
 
-        crawler.navigate()
+    response = crawler.navigate()
+    elements = crawler.get_table_rows()
 
+    while len(elements) < 19 or response != 200:
+        print(f'* ------------ Retrying {coin} data gathering ---')
+        t.sleep(3)
+        response = crawler.navigate()
         elements = crawler.get_table_rows()
 
-        with open(f'database/{coin}.csv', 'w+') as file:
+    print('* ------------ Table crawled --------------------- ')
+    print('len elements', len(elements))
 
-            for row in elements:
-                file.write(row.text)
-                file.write('\n')
+    lastrow = len(elements) - 19
+    table = elements[1:lastrow]
+    aux_list = []
+    for row in table:
+        rowdata = row.text.split(' ')
+        aux_list.append(rowdata)
 
-        crawler.end_process()
+    months = [item[0] for item in aux_list]
+    days = [item[1].replace(',', '') for item in aux_list]
+    years = [item[2] for item in aux_list]
+    closes = [(item[6]) for item in aux_list]
+    volumes = [(item[7]) for item in aux_list]
+    mktcaps = [(item[8]) for item in aux_list]
 
-        return 200
+    df_aux = pd.DataFrame(data={'Month': months,
+                                'Day': days,
+                                'Year': years,
+                                'Close': closes,
+                                'Volume': volumes,
+                                'Market Cap': mktcaps})
+    print('coin \n', df_aux[0:5])
 
-    except:
-        return 500
+    df_past = pd.read_csv(filename, sep=';')
+    df_past = df_past.append(df_aux, sort=False)
+
+    df_past.to_csv(filename, sep=';', index=False)
+
+    print('* ------------ DF saved --------------------- ')
+    crawler.end_process()
